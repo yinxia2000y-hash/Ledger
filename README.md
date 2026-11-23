@@ -2,272 +2,260 @@
 
 # Ledger
 
-**Agent 写完了。三周后你还找得到吗？**
+**AI 干完活了，三周后你还找得到它当时干了啥吗？**
 
-一个给 AI Agent 用的**账本式工作流**：三本账 + 五道闸门，让「做完了」变成机器能验证的事实。
+给 AI 用的记账本。三本账，五道检查，说"做完了"得拿得出来证据。
 
-[![Type](https://img.shields.io/badge/type-agent%20skill-4B32C3?style=flat-square)](./skills/ledger/SKILL.md)
-[![Deps](https://img.shields.io/badge/dependencies-0-2EA043?style=flat-square)](./tools/ledger.mjs)
-[![Node](https://img.shields.io/badge/node-%E2%89%A518-339933?style=flat-square&logo=node.js&logoColor=white)](./tools/ledger.mjs)
-[![License](https://img.shields.io/badge/license-MIT-0366D6?style=flat-square)](./LICENSE)
-[![Docs](https://img.shields.io/badge/docs-%E4%B8%AD%E6%96%87%20%7C%20English-EA4AAA?style=flat-square)](#english)
+[![类型](https://img.shields.io/badge/类型-AI%20技能-4B32C3?style=flat-square)](./skills/ledger/SKILL.md)
+[![依赖](https://img.shields.io/badge/依赖-零个-2EA043?style=flat-square)](./tools/ledger.mjs)
+[![Node](https://img.shields.io/badge/Node-18%2B-339933?style=flat-square&logo=node.js&logoColor=white)](./tools/ledger.mjs)
+[![许可](https://img.shields.io/badge/许可-MIT-0366D6?style=flat-square)](./LICENSE)
 
-**🌐 语言 / Language**　**中文**（当前） · [English ↓](#english)
+**语言**　**中文** · [English →](./README.en.md)
 
 </div>
 
 ---
 
-## 目录
+## 先说人话
 
-| | | |
-|---|---|---|
-| [**问题**](#问题) | [**实测**](#实测不是断言) | [**它做什么**](#三本账) |
-| [**五道闸门**](#五道闸门) | [**什么时候用**](#什么时候用-什么时候别用) | [**为什么不用一份长 CLAUDE.md**](#为什么不用一份很长的-claudemd) |
-| [**横向对比**](#和主流方案横向对比) | [**安装**](#安装60-秒) | [**已知局限**](#已知局限) |
+你有没有遇到过这几种情况：
 
----
+**第一种，答案找不着了。** AI 明明想通了，也告诉你了。可是过了两周你想再确认一遍，翻半天聊天记录，翻不到。只能让它重做一遍，这次做得还不如上次。
 
-## 问题
+**第二种，文件一大堆，不知道哪个是真的。** `报告.md`、`报告_v2.md`、`报告_最终版.md`、`报告_最终版2.md`。四个文件，内容都不一样，没人知道该信哪个。
 
-长会话的失败方式只有四种，而且都**无法靠"让 Agent 认真点"解决**。
+**第三种，一问问题它就翻整个电脑。** 你问"上次缓存方案怎么定的"，它去搜十一万个文件，搜了半天，给的答案还不如你自己记得清楚。
 
-<table>
-<tr><th width="22%">症状</th><th width="48%">具体表现</th><th width="30%">代价</th></tr>
-<tr><td>🔍 <b>结论丢失</b></td><td>你知道 Agent 想通了，但答案在 400 轮之前的对话里，某个地方</td><td>重新推导，而且推得更差</td></tr>
-<tr><td>📁 <b>文件名腐烂</b></td><td><code>report.md</code> → <code>report_v2.md</code> → <code>report_final.md</code> → <code>report_final_2.md</code></td><td>没人知道哪份是真的</td></tr>
-<tr><td>💥 <b>上下文爆炸</b></td><td>为了回答「当时怎么定缓存的」，Agent 去 grep 11.5 万个文件</td><td>时间、token，以及比读书还慢的答案</td></tr>
-<tr><td>✅ <b>「完成」不可证伪</b></td><td>Agent 说做完了。没有任何东西检查这件事</td><td>交付物里有静默的空洞</td></tr>
-</table>
+**第四种，它说"做完了"，你也不知道做完了没有。** 没有清单，没有检查，你说行就行吧。结果过两天发现漏了一半。
 
-通常的做法是加长提示词：*"把工作整理好。"* 那是**建议**。建议的执行是不均匀的，事后你也看不出到底有没有执行。
+这四种毛病，靠"跟 AI 说得更仔细一点"是治不好的。你说了它就一定照做吗？不一定。而且做完你也看不出来它到底照做了没有。
 
-> **Ledger 的做法：把纪律变成「有结构的文件」+「违规就非零退出的命令」。**
+> **Ledger 干的就一件事：把"要仔细"变成"必须仔细"，做不到就直接报错。**
 
 ---
 
-## 实测，不是断言
+## 它到底能省多少事
 
-以下数字来自参考实现对 **87 个真实任务目录**的统计。
+下面这些数字不是吹的，是拿八十七个真实任务算出来的。
 
 <div align="center">
 
-| 指标 | 改之前 | 改之后 |
+| | 用之前 | 用之后 |
 |:--|:--|:--|
-| 回答一个问题要读的文件 | 约 **115,000** 个文件 / 扫 **46 GB** | 所有 `BOOK.md` 索引 **≈14 KB**，再读 **1 个**章节文件 |
-| 检索成本 | 全项目 grep | **小三个数量级** |
-| 有「孤儿产出」闸门的任务 | 9 / 83（**11%**） | **100%** |
-| 小任务上的台账开销 | 2.1 KB 固定模板，最高占**总产出 100%** | 1.2 KB，门槛以下**根本不建** |
-| 工作流自己造出的空壳任务 | 26 / 83（**31%** 台账占比 >20%） | 结构上为 **0** |
+| 想查一件事，要看多少文件 | 大概 **11.5 万个**，四十多个 G | 先看目录 **14 KB**，再点开 **1 个文件** |
+| 快多少 | 满硬盘搜 | **快一千倍**（三个数量级） |
+| 有多少任务能查出"多出来的野文件" | 83 个里只有 9 个（**11%**） | **100%**，个个能查 |
+| 小事情要写多少铺垫 | 2 KB 起步，有时候**光铺垫就是全部产出** | 1.2 KB，而且**小事根本不用建** |
+| 光写铺垫、啥也没干的任务 | 83 个里有 **26 个** | 现在是 **0**，结构上就不可能 |
 
 </div>
-
-最后两行是这套东西最该看的部分。
 
 > [!IMPORTANT]
-> **Ledger 的第一个版本是错的，而且是我们自己量出来的。**
-> 当时的规则是「任何任务，哪怕只改一行，都必须先建台账」。
-> 这条规则制造了 **26 个「除了台账什么都没产出」的任务**，其中 5 个台账占 100%。
+> **最后两行才是重点：这套东西第一版是错的，我们自己算出来的。**
 >
-> [`SKILL.md` 第 6 节](./skills/ledger/SKILL.md) 的门槛是**修复**，不是装饰。
+> 最早的规矩是「不管多小的活，动手前必须先建账」。听着挺严谨对吧？
+> 结果八十七个任务里有 **二十六个**，最后唯一的产出就是那本账。有五个更绝，账占了百分之百。
+>
+> 所以现在加了门槛：小事直接干，别建账。**这不是妥协，是改错。**
 
 ---
 
-## 三本账
-
-每本账对应一个**能被机器判定**的问题。
+## 三本账，各管一件事
 
 <div align="center">
 
-| 账 | 文件 | 回答什么 | 谁来判定 |
+| 账 | 文件 | 它回答什么 | 谁来检查 |
 |:--|:--|:--|:--|
-| 📒 **文件账** | `MANIFEST.md` | 这文件谁建的、干什么、谁读它、怎么验证？ | `close` — 未登记即 exit 1 |
-| 📖 **章节账** | `BOOK.md` | 我要的答案在**哪一章**？（≤200 行，摘要 + 关键词） | `book check` — 孤儿 / 章号重复 / 索引腐烂 |
-| 🗄️ **产物账** | `ledger artifact` | 留着、只记路径、还是删掉？ | `clean` 默认 dry-run + `guard` 体积预算 |
+| 📒 **文件账** | `MANIFEST.md` | 这个文件谁建的、干什么用、谁会看、怎么验？ | `close` 一查，有没登记的立刻报错 |
+| 📖 **章节账** | `BOOK.md` | 我要的答案在第几章？ | `book check` 查三种病：野文件、重号、目录过时 |
+| 🗄️ **产物账** | `ledger artifact` | 留下、只记个路径、还是删掉？ | `clean` 默认只看不动，`guard` 管体积 |
 
 </div>
 
 <details>
-<summary><b>磁盘布局（点击展开）</b></summary>
+<summary><b>文件夹长什么样（点开看）</b></summary>
 
 ```
-_work/<slug>/              ← 默认根；--root 或 $LEDGER_ROOT 可改
-├── MANIFEST.md            文件账
-├── BOOK.md                章节账 —— 唯一检索入口
-├── 00-brief/ch00.md       ← 章节目录由章号推导
-├── 10-plan/ch10.md
-├── 20-exec/ch20.md
-├── 30-evidence/ch30.md
-├── 40-deliver/ch40.md     唯一的权威结论
-├── out/                   真产物
-├── backup/                改动前原件（回滚用，永不删）
-└── tmp/                   探针；收尾必须清空
+_work/任务名/
+├── MANIFEST.md          文件账
+├── BOOK.md              章节账 —— 找东西只认它
+├── 00-brief/ch00.md     立项
+├── 10-plan/ch10.md      计划
+├── 20-exec/ch20.md      干活
+├── 30-evidence/ch30.md  证据
+├── 40-deliver/ch40.md   结论（只放一处）
+├── out/                 真东西
+├── backup/              改之前的原件，永不删
+└── tmp/                 临时文件，收工前必须清空
 ```
 
-章节目录由编号推导：`ch0x`→`00-brief`，`ch1x`→`10-plan`，`ch2x`→`20-exec`，`ch3x`→`30-evidence`，`ch4x`→`40-deliver`。
+文件夹名是按编号自动算的：`ch0x` 进 `00-brief`，`ch1x` 进 `10-plan`，以此类推。
 
-**永远不要用「第 17 轮」给文档编号。** 轮次不是结构，阶段才是。
+**千万别用"第十七轮"这种名字给文件编号。** 轮次不是结构，阶段才是。
 
 </details>
 
-### 检索：找一次，只读一章
+### 找东西是什么感觉
 
 ```console
-$ ledger book find cache
-[ledger] 2 chapter(s) across 1 book(s)
+$ ledger book find 缓存
+[ledger] 命中 2 章，在 1 本书里
 
 ## search-cache
-  | ch30 | Evidence   | benchmarks and failure modes | bench    | 30-evidence/ch30.md | done |
-  | ch40 | Conclusion | the one decision             | decision | 40-deliver/ch40.md  | done |
+  | ch30 | 证据 | 压测数据和坑 | bench    | 30-evidence/ch30.md | done |
+  | ch40 | 结论 | 最终怎么定    | decision | 40-deliver/ch40.md  | done |
 
->> Read only the chapter bodies you hit. Do not scan directories.
+>> 只读这两章，别去翻文件夹。
 ```
 
-**两个文件。不是一次全库扫描。**
+**两个文件。不是满硬盘搜。**
 
 ---
 
-## 五道闸门
+## 五道检查，过不了就报错
 
-不是"建议"，是**会 exit 1 的检查**。
+不是建议，是**真的会拦住你**。
 
 <div align="center">
 
-| # | 命令 | 管什么 | 失败 |
+| # | 命令 | 查什么 | 不过怎么办 |
 |:-:|:--|:--|:--|
-| 1 | `book check <slug>` | 任务内：章号重复、状态/文件不一致、孤儿产出、BOOK 超 200 行 | **exit 1** |
-| 2 | `book orphans [slug]` | 任务内：**不需要建书**也能查未登记文件 | **exit 1** |
-| 3 | `book root` | 任务之间：根目录只允许任务目录 | **exit 1** |
-| 4 | `artifact clean` | 产物留/删/只记路径，**每条打印理由** | dry-run 默认 |
-| 5 | `close <slug>` | 未登记文件 + `tmp/` 残留 | **exit 1** |
+| 1 | `book check` | 章节号重复没有、说写完的文件在不在、有没有野文件、目录超没超 200 行 | **报错，卡住** |
+| 2 | `book orphans` | 跟第一道一样，但**不建章节也能用** | **报错，卡住** |
+| 3 | `book root` | 上层文件夹里有没有乱扔的文件 | **报错，卡住** |
+| 4 | `artifact clean` | 哪些产物该删、哪些该留，**每一条都说理由** | 默认只看不动 |
+| 5 | `close` | 还有没有没登记的文件、临时文件夹清没清 | **报错，卡住** |
 
 </div>
 
-**产物三分法**：失败构建物 → 删（只留 `.md` 报告）· 成功 ≤50MB → 留 · 成功 >50MB → 删文件记路径 · **任何 `.md` 报告 → 永远留**。
+**删东西的判断标准：** 编译失败的 → 删（报告留着）· 成功且小于 50 MB → 留 · 成功但大于 50 MB → 删掉但记下路径 · **任何 `.md` 报告 → 永远留**。
 
-**图片四分类**：`keyframe/关键帧/参考/联系表` → 交付资产**保留** · `screen/shot/capture` 或 `tmp/` → 分析截图**删** · 包内资源 → 删 · 认不出 → **保守保留**。
+**图片怎么判断：** 文件名里有 `keyframe`、`关键帧`、`参考`、`联系表` → 是要交付的货，**留** · 有 `screen`、`shot`、`截图` 或者在 `tmp/` 里 → 是分析用的，**删** · 认不出来 → **保守起见留着**。
 
-> 实测反例：某项目的 **76 张 AI 关键帧（133 MB）** 差点被全删——因为旧规则按目录判定。改成按文件名判定后一张不删。
-> 分类是启发式的，所以**每条都打印理由**，且 `clean` 默认 dry-run。
+> 真事：有个项目里 **76 张 AI 关键帧（133 MB）** 差点被全删了，因为老规则只看文件夹不看文件名。
+> 改成看文件名以后，一张都没删。
+>
+> 所以这套判断是**猜的**，每条都把理由打出来给你看，而且 `clean` 默认不真删。
 
 ---
 
-## 什么时候用 — 什么时候别用
+## 什么时候该用，什么时候别用
 
-多数工作流工具在这里搞错：它们坚持你**永远**都该用它。
+大多数工具都会说"你什么都该用我"。这话不对。
 
 ```
-新任务
-  ├─ 产出 ≤3 且一次性            → 不建账，直接干
-  ├─ 产出 ≤3 但要留痕            → 只 init（不建书）
-  ├─ 产出 >3 或步骤 >3           → init + 建书
-  └─ 跨会话需要被检索            → init + 建书，关键词写全
+新活儿来了
+  ├─ 产出不到 3 个，干完就完   → 别建账，直接干
+  ├─ 产出不到 3 个，但要留个记录 → 只建文件账
+  ├─ 产出超过 3 个，或者步骤超过 3 步 → 建文件账 + 建章节
+  └─ 过几周还得能查到          → 建账 + 关键词写全
 ```
 
 <div align="center">
 
-| ✅ 该用（ROI 为正） | ❌ 不该用（会亏） |
+| ✅ 该用（省事） | ❌ 别用（纯亏） |
 |:--|:--|
-| 可能中断、要续上的多步工作 | 改一行配置（开销可达 **100%**） |
-| 别人会反复追问的结论 | 一次性查询 |
-| 要交给另一个人 / 另一个会话 | 纯构建交付、无中间态 |
-| 改共享配置、要回滚路径 | 结果大概率被推翻的探索 |
-| 会产生多副本和大文件 | 明确的机械替换 |
+| 干到一半可能被打断、要接着干的活 | 改一行配置（铺垫可能占 **100%**） |
+| 别人会反复问你的结论 | 查一下就完的事 |
+| 要交接给别人、或者下个会话接着干 | 跑个构建直接交付，中间没东西 |
+| 动共享配置，需要能回滚 | 试错阶段，结论大概率要推翻 |
+| 会产出一堆副本和大文件 | 机械替换，一行命令的事 |
 
 </div>
 
-**分阶段退出**（工作流不是全生命周期都该在）：
+**分阶段用，别全程用：**
 
 ```
-探索期（结果不确定）→ 不建书，允许 tmp/ 乱放，结论稳了再一次性写
-收敛期（方向已定）  → init + 建书，逐章补
-交付期              → check + orphans + guard + close
+东试西试的时候（还不知道要干嘛）→ 别建章节，tmp/ 乱就乱吧，想清楚了再一次写好
+方向定了          → 建账 + 建章节，一章一章补
+要交付了          → 五道检查全过一遍
 ```
 
-**该停用的信号**：连续三次 `check` 失败都是「忘了 touch」→ 降级为只留文件账 · 同一章被重写超过两次 → 书建早了 · 台账开销 > 任务总产出 30% → 下次别 init。
+**该停下来的信号：** 连着三次报错都是"忘了建章节"，说明这东西对你没用，降级成只建文件账就行 · 同一章被重写超过两次，说明书建早了 · 铺垫超过总产出的三成，说明这活太小，下次别建。
 
 ---
 
-## 为什么不用一份很长的 CLAUDE.md
+## 为啥不直接写个长长的 CLAUDE.md
 
-**因为文字不会失败。**
+**因为文字不会报错。**
 
 <div align="center">
 
-| | 规则文件<br>`CLAUDE.md` / `AGENTS.md` | **Ledger** |
+| | 写一堆规矩<br>`CLAUDE.md` / `AGENTS.md` | **Ledger** |
 |:--|:--|:--|
-| 强制方式 | 模型愿意遵守 | **5 条命令非零退出** |
-| 事后能看出有没有遵守吗 | ❌ 不能 | ✅ 未登记文件 / 孤儿产出 / 缺失章节 |
-| 检索成本 | 随项目增长 | 近似常数：索引层 → 一章 |
-| 新人上手 | 读完整份规则 | 读一个 `BOOK.md` |
-| 上下文压缩后还在吗 | 经常丢 | ✅ 在磁盘上 |
+| 靠什么管住它 | 它愿意听就听 | **五条命令会直接报错卡住** |
+| 事后能不能看出它到底听没听 | 看不出来 | 能。有野文件、有孤儿、少一章，全查得出 |
+| 找东西要翻多少 | 项目越大翻得越多 | 差不多固定：先看目录，再点一章 |
+| 新人接手 | 得把整份规矩读完 | 看一个 `BOOK.md` 就够 |
+| 聊太久了上下文被压缩 | 规矩经常丢 | 账在硬盘上，丢不了 |
 
 </div>
 
-代价是明确的：每个非微小任务付约 **1.2 KB** 台账，换来一个**可机器验证的「完成」**。
+代价也明说：每个正经活儿多花大概 **1.2 KB** 记账，换来一个**能验证的"做完了"**。
 
 ---
 
-## 和主流方案横向对比
+## 跟别的热门项目比
 
-多数 skill 仓库是**能力集合**——增加 Agent 能做的事。
-Ledger 是**底层规范**——改变其他工作的记录方式，所以它**可以叠加**，不是竞争。
+大部分技能库是**工具箱**——给 AI 加新本事。
+Ledger 是**记账的方式**——管的是别的东西干完怎么记下来。所以它是**叠加的**，不是抢饭碗的。
 
 <div align="center">
 
-|  | [anthropics/skills](https://github.com/anthropics/skills)<br>`199k ★` | [obra/superpowers](https://github.com/obra/superpowers) | [alirezarezvani/claude-skills](https://github.com/alirezarezvani/claude-skills)<br>`434 skills` | **Ledger** |
+|  | [anthropics/skills](https://github.com/anthropics/skills)<br>`19.9万星` | [obra/superpowers](https://github.com/obra/superpowers) | [alirezarezvani/claude-skills](https://github.com/alirezarezvani/claude-skills)<br>`434 个技能` | **Ledger** |
 |:--|:--|:--|:--|:--|
-| **是什么** | 官方 skill 参考实现 | 一套软件开发方法论 | 海量能力集合 | **可追溯工作流** |
-| **覆盖范围** | 按任务，多域 | 单项目开发周期 | 多域、多角色 | **跨域、跨会话** |
-| **强制力** | 引导 | 强制工作流（提示词层） | 引导 + 加载测试 | **5 条命令 exit 1** |
-| **持久化** | 会话内 | Git 分支 + 计划文件 | 会话内 | **磁盘上的账，按任务** |
-| **检索方案** | — | 每分支计划文件 | skill 描述 | **先索引，再一章** |
-| **公开自己的失败** | 不适用 | 部分 | 公开加载测试 | **公开，且带数字 26/83** |
-| **最佳搭配** | — | 项目型开发 | 领域专长 | **上面任意一个** |
+| **是啥** | 官方技能示例 | 一套开发流程 | 大量技能合集 | **一套记账流程** |
+| **管多大范围** | 单个任务，多个领域 | 一个项目的开发周期 | 多个领域、多个岗位 | **跨领域、跨会话** |
+| **靠什么管住** | 靠自觉 | 靠流程（还是文字） | 靠自觉 + 加载测试 | **五条命令报错** |
+| **东西存在哪** | 这次聊完就没了 | Git 分支 + 计划文件 | 这次聊完就没了 | **硬盘上，按任务分开** |
+| **怎么找** | — | 每个分支的计划文件 | 技能说明 | **先看目录，再点一章** |
+| **敢说自己哪里差吗** | 不适用 | 说了点 | 公开测试结果 | **敢，还带数字：26/83** |
+| **跟谁搭** | — | 项目开发 | 专业领域 | **上面任何一个** |
 
 </div>
 
-### 也要说清楚：Ledger 严格更差的地方
+### 也得说清楚：Ledger 差在哪
 
 <details>
-<summary><b>5 条硬伤（点击展开）</b></summary>
+<summary><b>五条硬伤（点开看）</b></summary>
 
-| # | 更差在哪 | 后果 |
+| # | 差在哪 | 后果 |
 |:-:|:--|:--|
-| 1 | **不给 Agent 任何新能力** | 如果问题是「Agent 不会做 X」，Ledger 是错的工具 |
-| 2 | **小任务上更慢** | 1.2 KB 台账对一行改动是净亏（这就是门槛存在的原因） |
-| 3 | **限制探索期** | 不知道会产出 3 个还是 30 个文件时，建书要反复重写 |
-| 4 | **章号永久，很烦** | 计划错了只能追加，不能重排 |
-| 5 | **无可视化** | 纯 markdown + CLI，没有 dashboard |
+| 1 | **不给 AI 加任何新本事** | 如果你的问题是"AI 不会干这个"，那 Ledger 帮你不上 |
+| 2 | **小事上更慢** | 改一行代码还要写 1.2 KB 铺垫，纯亏（所以才有那个门槛） |
+| 3 | **探索阶段碍事** | 还不知道要出三个文件还是三十个的时候，建章节要反复重写 |
+| 4 | **章节号改不了，挺烦** | 计划错了只能往后加，不能重排 |
+| 5 | **没有界面** | 就是文本 + 命令行，没仪表盘 |
 
-还有 5 条实现层面的局限，见 [已知局限](#已知局限)。
+还有五条实现层面的短板，在后面"已知的毛病"里。
 
 </details>
 
-> 对比表里唯一一列别的仓库没有的：**公开自己的失败，且带数字**。
-> 这不是谦虚——它同时证明两件相反的事：这套东西被真实使用过，而且被真实测量过。
+> 对比表里唯一一个别人没有的：**敢承认自己哪里不行，还带数字。**
+> 这不是谦虚。它同时证明了两件相反的事——这东西是真用过的，也是真量过的。
 
 ---
 
-## 安装：60 秒
+## 装起来：一分钟
 
-零依赖 · Node ≥18 · 无构建步骤。
+不用装任何依赖，Node 18 以上，不用编译。
 
-**1. 装 skill**（Claude Code / 任何读 `~/.claude/skills` 的 harness）
+**第一步，装技能：**
 
 ```bash
 git clone https://github.com/yinxia2000y-hash/Ledger.git
 cp -r Ledger/skills/ledger ~/.claude/skills/ledger
 ```
 
-**2. 装 CLI**
+**第二步，装命令行工具：**
 
 ```bash
 cp Ledger/tools/ledger.mjs ~/bin/ledger && chmod +x ~/bin/ledger
 ledger --help
 ```
 
-**3. 验证装好了**（逐字执行，我们就是这么测的）
+**第三步，验一下装没装好**（照抄就行，我们就是这么测的）：
 
 ```bash
 mkdir -p /tmp/ledger-demo && cd /tmp/ledger-demo
@@ -275,49 +263,50 @@ ledger init demo --goal "verify the install" --expect 6 --trace
 ledger book init demo --title "Install check" --goal "verify" \
   --ch "ch00|Brief|goal|goal" --ch "ch40|Conclusion|the answer|answer"
 ledger book touch demo ch40 --answer "does it work"
-ledger book check demo     # -> PASS
-ledger book root           # -> PASS
+ledger book check demo
+ledger book root
 ```
 
-<details>
-<summary><b>其他 harness（Codex / Cursor / Gemini CLI / OpenCode / Kimi）</b></summary>
+两个都显示 `PASS` 就是装好了。
 
-读的都是同一份 `SKILL.md` frontmatter，放进各自的 skills 目录即可：
+<details>
+<summary><b>用别的工具（Codex / Cursor / Gemini CLI / OpenCode / Kimi）</b></summary>
+
+它们读的都是同一份 `SKILL.md`，把文件夹扔进去就行：
 
 ```bash
-# 项目内（入库、团队共享）
 mkdir -p .claude/skills && cp -r Ledger/skills/ledger .claude/skills/ledger
 ```
 
-CLI 是纯 Node 脚本，哪都能跑。**没有 marketplace 打包**——单体 skill 用 `cp -r` 就够。
+命令行工具是纯 Node 脚本，哪都能跑。
 
 </details>
 
 ---
 
-## 用法
+## 怎么用
 
 <details>
-<summary><b>完整五步（点击展开）</b></summary>
+<summary><b>完整五步（点开看）</b></summary>
 
 ```bash
-# 1. 建任务目录（小任务会直接劝退）
+# 1. 建任务目录（活儿太小的话它会劝你别建）
 ledger init search-cache --goal "决定缓存失效策略" --expect 8 --trace
 
-# 2. 一次写全章节表，正文可以一个字没有
+# 2. 一次把章节表写全，正文可以一个字都没有
 ledger book init search-cache --title "缓存失效" --goal "选一个策略" \
-  --ch "ch00|Brief|约束与验收|goal" \
-  --ch "ch10|Options|三个候选|candidates" \
-  --ch "ch30|Evidence|压测与失败模式|bench" \
-  --ch "ch40|Conclusion|唯一的决定|decision"
+  --ch "ch00|立项|约束和验收|goal" \
+  --ch "ch10|方案|三个候选|candidates" \
+  --ch "ch30|证据|压测数据和坑|bench" \
+  --ch "ch40|结论|最终怎么定|decision"
 
-# 3. 逐章：先建文件，再写正文
-ledger book touch search-cache ch30 --answer "压测到底显示了什么"
+# 3. 一章一章写：先建文件，再写正文
+ledger book touch search-cache ch30 --answer "压测到底说明白了啥"
 
-# 4. 每个产出登记两次（文件账 + 该章的产出表）
+# 4. 每个产出登记两次（文件账一次，那一章的产出表一次）
 ledger add search-cache out/bench.json --does "p99 数据" --for "ch30"
 
-# 5. 过闸
+# 5. 过五道检查
 ledger book check search-cache
 ledger book orphans search-cache
 ledger book root
@@ -325,52 +314,52 @@ ledger artifact guard search-cache --max-mb 200
 ledger close search-cache
 ```
 
-**状态机**：`pending` --touch--> `writing` --结论写完--> `done`；废弃标 `dropped`，**章号永不复用**。
+**状态怎么走：** `待写` →（建文件）→ `在写` →（结论写完）→ `完了`。不要的章节标 `已废弃`，**章节号永远不能重复用**。
 
-忘了加章？`ledger book add <slug> --ch "ch11|..."` —— 可以追加，不能改号。
+忘了加一章？`ledger book add 任务名 --ch "ch11|..."`——能往后加，不能改号。
 
 </details>
 
 <details>
-<summary><b>产物判定细则</b></summary>
+<summary><b>产物怎么判断留还是删</b></summary>
 
-| 产物 | 处置 |
+| 产物 | 怎么办 |
 |:--|:--|
-| 失败的 apk/ipa/dex/img/dump | 删，只留 `.md` 报告 |
-| 成功且 ≤50MB | 留 |
-| 成功但 >50MB | 删文件，报告里记路径+大小 |
-| `dex/so/dll/class`（可从包重解） | 删 |
+| 编译失败的 apk/ipa/dex/img/dump | 删掉，只留 `.md` 报告 |
+| 成功、50 MB 以下 | 留着 |
+| 成功、超过 50 MB | 删文件，报告里记下路径和大小 |
+| `dex/so/dll/class`（能从包里重新解出来的） | 删 |
 | dump / 反编译 / 日志 / 一次性脚本 | 删 |
-| **任何 `.md` 报告 / 分析数据** | **永远留** |
+| **任何 `.md` 报告、分析数据** | **永远留** |
 
-`backup/` 下的回滚原件**永不进入删除候选**（已于本版本修复：三个闸门口径统一）。
+`backup/` 里的回滚原件**永远不进删除名单**（这一版才修好，之前三个检查的标准不一致）。
 
 </details>
 
 ---
 
-## 已知局限
+## 已知的毛病
 
-不遮掩。**一个隐瞒失败模式的工作流不值得信任。**
+不藏着。**一个连自己哪里不行都不敢说的工具，不值得信。**
 
-| # | 局限 | 状态 |
+| # | 毛病 | 现在怎么样 |
 |:-:|:--|:--|
-| 1 | 小任务开销可能超过产出（实测 26/83，5 个 100%） | ✅ **已修** — 门槛 |
-| 2 | `MANIFEST.md` 固定模板税 | ✅ **已瘦身** ~1.2 KB；`sync` 可刷新旧账 |
-| 3 | 书只在 11% 任务被使用 | ⚠️ **部分无解** — 靠判断，不强制 |
-| 4 | 两本账会漂移 | ⚠️ **已检测**（告警，不阻断） |
-| 5 | 索引腐烂：正文改了摘要没改 | ⚠️ **已检测**（告警，不阻断） |
-| 6 | 章号永久，重构成本高 | 🔒 **接受** — 引用稳定 > 重构便利 |
-| 7 | 三道闸门曾对 89% 未建书任务失效 | ✅ **已修** — `book orphans` |
-| 8 | 产物分类是启发式，会静默判错 | 🔒 **接受** — 每条打印理由 + 默认 dry-run |
-| 9 | **全靠提示词层，无 hook 运行时强制** | ❌ **无解** — Agent 可以完全无视 |
+| 1 | 小事上的铺垫可能比产出还多（实测 26/83，五个占满） | ✅ **修了** — 加了门槛 |
+| 2 | 文件账的模板是固定的一大坨 | ✅ **瘦身了** — 1.2 KB，老账能一键刷新 |
+| 3 | 章节账只有 11% 的任务在用 | ⚠️ **没法硬修** — 靠判断，不能强制 |
+| 4 | 两本账可能对不上 | ⚠️ **能查出来**（报警，不拦） |
+| 5 | 正文改了目录没改，目录会过时 | ⚠️ **能查出来**（报警，不拦） |
+| 6 | 章节号改不了，重构费劲 | 🔒 **认了** — 引用稳定比重构方便重要 |
+| 7 | 三道检查曾经对 89% 没建章节的任务完全失效 | ✅ **修了** — 加了 `book orphans` |
+| 8 | 删文件的判断是猜的，猜错也不报错 | 🔒 **认了** — 每条打理由 + 默认不真删 |
+| 9 | **全靠文字约束，没有运行时强制** | ❌ **没法修** — AI 完全可以不理你 |
 
-第 9 条是最严重的。**Agent 可以忽略整个工作流，没有任何东西阻止它。** 闸门买到的是「事后检测」，不是「合规保证」。
+第九条是最要命的。**AI 可以把这一整套当空气，没有任何东西能拦它。** 那五道检查买到的是"事后能查出来"，不是"保证它照做"。
 
 <details>
-<summary><b>为什么不做 hook 层强制</b></summary>
+<summary><b>为什么不做一个强制拦截</b></summary>
 
-因为要为每个 harness 的 hook API 做一次集成，而每次集成都是一份永久维护成本，收益只在该集成还活着的时候存在。与其做一个半吊子的拦截器，不如把检测做实。
+因为每个工具有自己的拦截接口，接一次就要维护一辈子，而且只有在这个接口还活着的时候才管用。与其做个半吊子拦不住，不如把"事后查得出"做扎实。
 
 </details>
 
@@ -378,396 +367,8 @@ ledger close search-cache
 
 <div align="center">
 
-**如果这套东西帮你找回过一个结论，给个 ⭐ 就是最好的反馈。**
+**如果这东西帮你找回了一个想不起来的结论，点个 ⭐ 就是最好的反馈。**
 
-[⬆ 回到顶部](#ledger) · [English ↓](#english)
-
-</div>
-
----
----
-
-<div align="center">
-
-# English
-
-**🌐 Language / 语言**　[中文 ↑](#ledger) · **English**（current）
-
-</div>
-
-# Ledger
-
-**Your agent already wrote the answer. Can you find it three weeks later?**
-
-A **ledger-style workflow** for AI agents: three ledgers, five gates, and a "done" that a machine can verify.
-
-[![Type](https://img.shields.io/badge/type-agent%20skill-4B32C3?style=flat-square)](./skills/ledger/SKILL.md)
-[![Deps](https://img.shields.io/badge/dependencies-0-2EA043?style=flat-square)](./tools/ledger.mjs)
-[![Node](https://img.shields.io/badge/node-%E2%89%A518-339933?style=flat-square&logo=node.js&logoColor=white)](./tools/ledger.mjs)
-[![License](https://img.shields.io/badge/license-MIT-0366D6?style=flat-square)](./LICENSE)
-
----
-
-## Table of Contents
-
-| | | |
-|---|---|---|
-| [**The problem**](#the-problem) | [**Measured**](#measured-not-asserted) | [**What it does**](#three-ledgers) |
-| [**Gates**](#five-gates) | [**When to use**](#when-to-use-when-not-to) | [**Why not a rules file**](#why-not-just-a-long-claudemd) |
-| [**Comparison**](#compared-to-other-skill-repositories) | [**Install**](#install-in-60-seconds) | [**Limitations**](#known-limitations) |
-
----
-
-## The problem
-
-Long agent sessions fail in four predictable ways. None of them are fixed by telling the agent to be more careful.
-
-<table>
-<tr><th width="22%">Symptom</th><th width="48%">What it looks like</th><th width="30%">What it costs</th></tr>
-<tr><td>🔍 <b>Lost conclusions</b></td><td>You know the agent figured it out. It is in the transcript, 400 turns back, somewhere</td><td>Re-deriving it, badly</td></tr>
-<tr><td>📁 <b>Filename rot</b></td><td><code>report.md</code> → <code>report_v2.md</code> → <code>report_final.md</code> → <code>report_final_2.md</code></td><td>Nobody knows which one is true</td></tr>
-<tr><td>💥 <b>Context blowup</b></td><td>To answer "what did we decide about caching", the agent greps 115,000 files</td><td>Time, tokens, a slower answer than reading a book</td></tr>
-<tr><td>✅ <b>Unfalsifiable "done"</b></td><td>The agent says it is complete. Nothing checks that</td><td>Silent gaps in the deliverable</td></tr>
-</table>
-
-The usual fix is a longer prompt: *"keep your work organised."* That is a **suggestion**. Suggestions are followed inconsistently, and you cannot tell afterwards whether they were followed at all.
-
-> **Ledger's fix: turn the discipline into structured files plus commands that exit non-zero when the schema is violated.**
-
----
-
-## Measured, not asserted
-
-Numbers from the reference implementation across **87 real task directories**.
-
-<div align="center">
-
-| Metric | Before | After |
-|:--|:--|:--|
-| Files examined to answer one question | ~**115,000** files / **46 GB** scanned | all `BOOK.md` indexes **≈14 KB**, then **one** chapter file |
-| Retrieval cost | Full-project grep | **Three orders of magnitude smaller** |
-| Tasks with an orphan-output gate | 9 of 83 (**11%**) | **100%** |
-| Ledger overhead on small tasks | 2.1 KB of boilerplate, up to **100% of output** | 1.2 KB, and **not created at all** below the threshold |
-| Empty-shell tasks caused by the workflow itself | 26 of 83 (**31%** were >20%) | **0** by construction |
-
-</div>
-
-> [!IMPORTANT]
-> **The first version of this workflow was wrong, and we measured it.**
-> Its rule was "every task, even a one-line change, must create a ledger."
-> That rule manufactured **26 tasks whose only output was the ledger**, 5 of them at 100%.
->
-> The threshold in [`SKILL.md` §6](./skills/ledger/SKILL.md) is the **repair**, not a nicety.
-
----
-
-## Three ledgers
-
-Each answers one machine-checkable question.
-
-<div align="center">
-
-| Ledger | File | Question it answers | Who checks it |
-|:--|:--|:--|:--|
-| 📒 **File ledger** | `MANIFEST.md` | Who made this, what for, who reads it, how to verify? | `close` — unregistered = exit 1 |
-| 📖 **Chapter book** | `BOOK.md` | Which chapter answers my question? (≤200 lines, summary + keywords) | `book check` — orphans / duplicate numbers / index rot |
-| 🗄️ **Artifact ledger** | `ledger artifact` | Keep it, register the path, or delete it? | `clean` dry-run by default + `guard` size budget |
-
-</div>
-
-<details>
-<summary><b>Disk layout (click to expand)</b></summary>
-
-```
-_work/<slug>/              ← default root; override with --root or $LEDGER_ROOT
-├── MANIFEST.md            file ledger
-├── BOOK.md                chapter book — the only retrieval entry point
-├── 00-brief/ch00.md       ← directories are derived from the chapter number
-├── 10-plan/ch10.md
-├── 20-exec/ch20.md
-├── 30-evidence/ch30.md
-├── 40-deliver/ch40.md     the single authoritative conclusion
-├── out/                   real deliverables
-├── backup/                originals for rollback — never deleted
-└── tmp/                   probes; must be empty at close
-```
-
-`ch0x`→`00-brief`, `ch1x`→`10-plan`, `ch2x`→`20-exec`, `ch3x`→`30-evidence`, `ch4x`→`40-deliver`.
-
-**Never number documents by round.** Rounds are not structure; stages are.
-
-</details>
-
-### Retrieval: locate once, read one chapter
-
-```console
-$ ledger book find cache
-[ledger] 2 chapter(s) across 1 book(s)
-
-## search-cache
-  | ch30 | Evidence   | benchmarks and failure modes | bench    | 30-evidence/ch30.md | done |
-  | ch40 | Conclusion | the one decision             | decision | 40-deliver/ch40.md  | done |
-
->> Read only the chapter bodies you hit. Do not scan directories.
-```
-
-**Two files. Not a repository scan.**
-
----
-
-## Five gates
-
-Not advice — **checks that exit 1**.
-
-<div align="center">
-
-| # | Command | Covers | On failure |
-|:-:|:--|:--|:--|
-| 1 | `book check <slug>` | Inside a task: duplicate numbers, status/file mismatch, orphans, `BOOK.md` >200 lines | **exit 1** |
-| 2 | `book orphans [slug]` | Inside a task: unregistered files **without needing a book** | **exit 1** |
-| 3 | `book root` | Between tasks: the root holds only task directories | **exit 1** |
-| 4 | `artifact clean` | Keep / delete / register, **each decision prints its reason** | dry-run by default |
-| 5 | `close <slug>` | Unregistered files + `tmp/` leftovers | **exit 1** |
-
-</div>
-
-**Artifact retention**: failed build output → delete (keep only the `.md` report) · success ≤50MB → keep · success >50MB → delete the file, register the path · **any `.md` report → always keep**.
-
-**Image classification**: `keyframe/reference/contact-sheet` → deliverable, **keep** · `screen/shot/capture` or under `tmp/` → analysis screenshot, **delete** · bundled package resources → delete · unrecognised → **keep conservatively**.
-
-> A measured counter-example: **76 AI keyframes (133 MB)** were almost deleted because the old rule classified by directory. Switching to filename-based classification saved all 76.
-> Classification is heuristic, so **every decision prints its reason** and `clean` is dry-run by default.
-
----
-
-## When to use — when not to
-
-Most workflow tools get this wrong by insisting you always use them.
-
-```
-New task
-  ├─ ≤3 outputs, one-shot            → no ledger. Just work.
-  ├─ ≤3 outputs, needs a paper trail → init only (no book)
-  ├─ >3 outputs or >3 steps          → init + book
-  └─ must be retrievable later       → init + book, keywords filled in
-```
-
-<div align="center">
-
-| ✅ Good fit (positive ROI) | ❌ Bad fit (negative ROI) |
-|:--|:--|
-| Multi-step work that may be interrupted | Changing one line of config (overhead up to **100%**) |
-| A conclusion people will re-ask about | A one-shot lookup |
-| Work handed to a person or a later session | Build-and-ship with no intermediates |
-| A shared config change needing rollback | Exploratory thrash that will be rewritten |
-| Outputs that multiply copies and big files | A mechanical find-and-replace |
-
-</div>
-
-**Staged exit** (the workflow is not for the whole lifecycle):
-
-```
-exploration (outcome unknown) → no book; write it once the answer settles
-convergence (direction set)   → init + book, fill chapters
-delivery                      → check + orphans + guard + close
-```
-
-**Signals to stop**: three consecutive `check` failures that are all "forgot to touch" → manifest-only · same chapter rewritten >2 times → the book was built too early · overhead above 30% of total output → don't init next time.
-
----
-
-## Why not just a long CLAUDE.md
-
-**Because prose cannot fail.**
-
-<div align="center">
-
-| | A rules file<br>`CLAUDE.md` / `AGENTS.md` | **Ledger** |
-|:--|:--|:--|
-| Enforcement | The model may comply | **5 commands exit non-zero** |
-| Can you tell afterwards whether it was followed? | ❌ No | ✅ Unregistered file / orphan / missing chapter |
-| Retrieval cost | Grows with the project | Near-constant: index layer → one chapter |
-| Newcomer onboarding | Read the whole rules file | Read one `BOOK.md` |
-| Survives context compaction | Often lost | ✅ On disk |
-
-</div>
-
-The trade is explicit: ~**1.2 KB** of ledger per non-trivial task, for a machine-verifiable **"done"**.
-
----
-
-## Compared to other skill repositories
-
-Most skill repositories are **collections** — they add capabilities.
-Ledger is a **substrate** — it changes how the work is recorded, so it **composes** instead of competing.
-
-<div align="center">
-
-|  | [anthropics/skills](https://github.com/anthropics/skills)<br>`199k ★` | [obra/superpowers](https://github.com/obra/superpowers) | [alirezarezvani/claude-skills](https://github.com/alirezarezvani/claude-skills)<br>`434 skills` | **Ledger** |
-|:--|:--|:--|:--|:--|
-| **What it is** | Reference skill implementations | A software-dev methodology | A large capability collection | **A traceability workflow** |
-| **Scope** | Per task, many domains | One project's dev lifecycle | Many domains, many roles | **Cross-domain, cross-session** |
-| **Enforcement** | Guidance | Mandatory workflows (prompt-level) | Guidance + load tests | **5 commands exit 1** |
-| **Persistence** | Session | Git branch + plan files | Session | **On-disk ledgers, per task** |
-| **Retrieval** | — | Plan files per branch | Skill descriptions | **Index first, then one chapter** |
-| **Admits its own failures** | n/a | Partly | Publishes load tests | **Yes, with the numbers — 26/83** |
-| **Best paired with** | — | Project work | Domain expertise | **Any of the above** |
-
-</div>
-
-### And where Ledger is strictly worse
-
-<details>
-<summary><b>5 hard truths (click to expand)</b></summary>
-
-| # | Where it is worse | Consequence |
-|:-:|:--|:--|
-| 1 | **It gives your agent no new ability** | If the problem is "the agent cannot do X", Ledger is the wrong tool |
-| 2 | **Slower on small work** | A 1.2 KB ledger on a one-line change is a loss (hence the threshold) |
-| 3 | **Imposes structure on exploration** | Building a book before you know the shape means rewriting chapters |
-| 4 | **Chapter numbers are permanent** | Get the plan wrong and you must append, not reorder |
-| 5 | **No visualisation** | Markdown and a CLI. No dashboard |
-
-Five more implementation limits are in [Known limitations](#known-limitations).
-
-</details>
-
-> The one row no other repository has: **admits its own failures, with numbers.**
-> That is not modesty — it proves two opposite things at once: this has been used for real, and measured for real.
-
----
-
-## Install in 60 seconds
-
-Zero dependencies · Node ≥18 · no build step.
-
-**1. Install the skill** (Claude Code / any harness reading `~/.claude/skills`)
-
-```bash
-git clone https://github.com/yinxia2000y-hash/Ledger.git
-cp -r Ledger/skills/ledger ~/.claude/skills/ledger
-```
-
-**2. Install the CLI**
-
-```bash
-cp Ledger/tools/ledger.mjs ~/bin/ledger && chmod +x ~/bin/ledger
-ledger --help
-```
-
-**3. Verify the install** (run verbatim — this is how we tested it)
-
-```bash
-mkdir -p /tmp/ledger-demo && cd /tmp/ledger-demo
-ledger init demo --goal "verify the install" --expect 6 --trace
-ledger book init demo --title "Install check" --goal "verify" \
-  --ch "ch00|Brief|goal|goal" --ch "ch40|Conclusion|the answer|answer"
-ledger book touch demo ch40 --answer "does it work"
-ledger book check demo     # -> PASS
-ledger book root           # -> PASS
-```
-
-<details>
-<summary><b>Other harnesses (Codex / Cursor / Gemini CLI / OpenCode / Kimi)</b></summary>
-
-They all read the same `SKILL.md` frontmatter. Drop the folder into that harness's skills directory:
-
-```bash
-# project-local (checked into the repo, shared with the team)
-mkdir -p .claude/skills && cp -r Ledger/skills/ledger .claude/skills/ledger
-```
-
-The CLI is a plain Node script that runs anywhere. **No marketplace packaging** — a single skill needs only `cp -r`.
-
-</details>
-
----
-
-## Use
-
-<details>
-<summary><b>The full five steps (click to expand)</b></summary>
-
-```bash
-# 1. create the task directory (small tasks get refused)
-ledger init search-cache --goal "decide the cache invalidation strategy" --expect 8 --trace
-
-# 2. write the whole chapter table up front. Bodies may be empty.
-ledger book init search-cache --title "Cache invalidation" --goal "pick a strategy" \
-  --ch "ch00|Brief|constraints and acceptance|goal" \
-  --ch "ch10|Options|the three candidates|candidates" \
-  --ch "ch30|Evidence|benchmarks and failure modes|bench" \
-  --ch "ch40|Conclusion|the one decision|decision"
-
-# 3. work chapter by chapter: create the file, then write the body
-ledger book touch search-cache ch30 --answer "what did the benchmark actually show"
-
-# 4. register every output twice (file ledger + the chapter's output table)
-ledger add search-cache out/bench.json --does "p99 numbers" --for "ch30"
-
-# 5. gates
-ledger book check search-cache
-ledger book orphans search-cache
-ledger book root
-ledger artifact guard search-cache --max-mb 200
-ledger close search-cache
-```
-
-**State machine**: `pending` --touch--> `writing` --conclusion written--> `done`; abandoned chapters are marked `dropped` and **numbers are never reused**.
-
-Forgot a chapter? `ledger book add <slug> --ch "ch11|..."` — append yes, renumber no.
-
-</details>
-
-<details>
-<summary><b>Artifact retention rules</b></summary>
-
-| Artifact | Ruling |
-|:--|:--|
-| Failed apk/ipa/dex/img/dump | delete; keep only the `.md` report |
-| Successful, ≤50MB | keep |
-| Successful, >50MB | delete the file, register path + size |
-| `dex/so/dll/class` (regenerable) | delete |
-| dump / decompile / log / one-off script | delete |
-| **Any `.md` report or analysis data** | **always keep** |
-
-Rollback originals under `backup/` **never enter the deletion candidate set** (fixed in this version — all three gates now agree).
-
-</details>
-
----
-
-## Known limitations
-
-Nothing hidden. **A workflow that conceals its failure modes cannot be trusted.**
-
-| # | Limitation | Status |
-|:-:|:--|:--|
-| 1 | Small-task overhead can exceed the output (26/83 measured, 5 at 100%) | ✅ **Fixed** — threshold |
-| 2 | Fixed boilerplate in `MANIFEST.md` | ✅ **Slimmed** to ~1.2 KB; `sync` refreshes old ledgers |
-| 3 | Books used in only 11% of tasks | ⚠️ **Partly unsolvable** — a judgement call, not a mandate |
-| 4 | The two ledgers can drift | ⚠️ **Detected** (warn, non-blocking) |
-| 5 | Index rot: body changed, summary not updated | ⚠️ **Detected** (warn, non-blocking) |
-| 6 | Chapter numbers are permanent | 🔒 **Accepted** — stable references > refactor convenience |
-| 7 | Three gates were dead for 89% of tasks | ✅ **Fixed** — `book orphans` |
-| 8 | Artifact classification is heuristic and can be silently wrong | 🔒 **Accepted** — every decision prints its reason, dry-run by default |
-| 9 | **Everything is prompt-level; no hook-level enforcement** | ❌ **Unresolved** — an agent can ignore all of it |
-
-Number 9 is the serious one. **An agent can ignore this entire workflow and nothing stops it.** The gates buy *detection after the fact*, not compliance.
-
-<details>
-<summary><b>Why there is no hook layer</b></summary>
-
-Because it requires one integration per harness's hook API, and every integration is a permanent maintenance cost whose benefit exists only while that integration works. A half-working interceptor is worse than solid detection.
-
-</details>
-
----
-
-<div align="center">
-
-**If this ever helped you find an old conclusion, a ⭐ is the best feedback.**
-
-[⬆ Back to top](#english) · [中文 ↑](#ledger)
+[↑ 回到顶部](#ledger) · [English →](./README.en.md)
 
 </div>
